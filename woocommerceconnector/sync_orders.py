@@ -40,7 +40,8 @@ def sync_woocommerce_orders():
                             make_woocommerce_log(title=e.message, status="Error", method="sync_woocommerce_orders", message=frappe.get_traceback(),
                                 request_data=woocommerce_order, exception=True)
             # close this order as synced
-            close_synced_woocommerce_order(woocommerce_order.get("id"))
+            # ToDo review the logic!
+            # close_synced_woocommerce_order(woocommerce_order.get("id"))
                 
 def get_woocommerce_order_status_for_import():
     status_list = []
@@ -198,6 +199,7 @@ def create_sales_order(woocommerce_order, woocommerce_settings, company=None):
             tax_rules = ""
         so = frappe.get_doc({
             "doctype": "Sales Order",
+            "transaction_date": woocommerce_order.get("date_created"),
             "naming_series": woocommerce_settings.sales_order_series or "SO-woocommerce-",
             "woocommerce_order_id": woocommerce_order.get("id"),
             "woocommerce_payment_method": woocommerce_order.get("payment_method_title"),
@@ -412,7 +414,7 @@ def get_shipping_account_head(shipping):
         shipping_title = shipping.get("method_title").encode("utf-8")
 
         shipping_account =  frappe.db.get_value("woocommerce Tax Account", \
-                {"parent": "WooCommerce Config", "woocommerce_tax": shipping_title}, "tax_account")
+                {"parent": "WooCommerce Config", "woocommerce_tax": shipping_title.decode("utf-8")}, "tax_account")
 
         if not shipping_account:
                 frappe.throw("Tax Account not specified for woocommerce shipping method  {0}".format(shipping.get("method_title")))

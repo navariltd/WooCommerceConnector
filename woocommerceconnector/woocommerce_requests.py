@@ -49,7 +49,8 @@ def get_request_request(path, settings=None):
                 verify_ssl=verify_ssl,
                 wp_api=True,
                 version="wc/v3",
-                timeout=1000
+                timeout=1000,
+				query_string_auth=True,
         )
         r = wcapi.get(path)
         
@@ -103,7 +104,8 @@ def put_request(path, data):
                 verify_ssl=settings['verify_ssl'],
                 wp_api=True,
                 version="wc/v3",
-                timeout=5000
+                timeout=5000,
+                query_string_auth=True
         )
         #frappe.log_error("{0} data: {1}".format(path, data))
         r = wcapi.put(path, data)

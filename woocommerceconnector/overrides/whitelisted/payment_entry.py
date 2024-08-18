@@ -1,7 +1,7 @@
 import frappe
 from erpnext.accounts.doctype.payment_entry.payment_entry import (
-	get_bank_cash_account,
-	get_payment_entry
+    get_bank_cash_account,
+    get_payment_entry
 ) 
 
 
@@ -26,6 +26,11 @@ def custom_get_payment_entry(
         payment_type=None,
         reference_date=None,
     )
+
+    if dt != "Sales Invoice":
+        return pe
+    
+    # Add missing data like (woocommerce payment method & MOP) 
     woocommerce_payment_method = frappe.db.get_value(
         dt, dn, "custom_woocommerce_payment_method"
     )

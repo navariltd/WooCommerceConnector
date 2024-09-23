@@ -145,7 +145,7 @@ def create_customer_contact(customer, woocommerce_customer):
             "first_name": woocommerce_customer["billing"]["first_name"],
             "last_name": woocommerce_customer["billing"]["last_name"],
             "email_ids": [{
-                "email_id": woocommerce_customer["billing"]["email"],
+                "email_id": woocommerce_customer["billing"]["email"] or "example@gmail.com", #NOTE Temp change
                 "is_primary": 1
             }],
             "phone_nos": [{

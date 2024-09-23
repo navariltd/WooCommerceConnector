@@ -23,6 +23,10 @@ def sync_woocommerce_orders():
         
     for woocommerce_order_status in woocommerce_order_status_for_import:
         for woocommerce_order in get_woocommerce_orders(woocommerce_order_status):
+			# validate that woocommerce order has line times
+            if len(woocommerce_order.get("line_items", [])) == 0:
+                continue
+
             so = frappe.db.get_value("Sales Order", {"woocommerce_order_id": woocommerce_order.get("id")}, "name")
             if not so:
                 if valid_customer_and_product(woocommerce_order):

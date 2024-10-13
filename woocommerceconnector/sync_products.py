@@ -19,6 +19,8 @@ def sync_products(price_list, warehouse, sync_from_woocommerce=False):
     woocommerce_item_list = []
     if sync_from_woocommerce:
         sync_woocommerce_items(warehouse, woocommerce_item_list)
+       
+
     frappe.local.form_dict.count_dict["products"] = len(woocommerce_item_list)
     if woocommerce_settings.if_not_exists_create_item_to_woocommerce == 1:
         sync_erpnext_items(price_list, warehouse, woocommerce_item_list)
@@ -243,6 +245,12 @@ def is_item_exists(item_dict, attributes=None, variant_of=None, woocommerce_item
                 fields=['name', 'stock_uom'])
     if len(erp_item_match) > 0:
         # item does exist in ERP --> Update
+
+        restricted_fields = ("has_serial_no", "is_stock_item", "valuation_method", "has_batch_no")
+        
+        for field in restricted_fields:
+            item_dict.pop(field,None)
+
         update_item(item_details=erp_item_match[0], item_dict=item_dict)
         return True
 

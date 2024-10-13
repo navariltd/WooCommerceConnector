@@ -249,8 +249,7 @@ def is_item_exists(item_dict, attributes=None, variant_of=None, woocommerce_item
         restricted_fields = ("has_serial_no", "is_stock_item", "valuation_method", "has_batch_no")
         
         for field in restricted_fields:
-            if field in item_dict:
-                item_dict.pop('field',None)
+            item_dict.pop(field,None)
 
         update_item(item_details=erp_item_match[0], item_dict=item_dict)
         return True

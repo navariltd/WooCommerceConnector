@@ -1,172 +1,172 @@
 from __future__ import unicode_literals
 import frappe
 from frappe import _
-import json, math, time, pytz
+import json, time, requests
 from .exceptions import woocommerceError
-from frappe.utils import get_request_session, get_datetime
-from frappe.client import get_time_zone
+from frappe.utils import get_request_session, get_datetime, cint
 from woocommerce import API
 from .utils import make_woocommerce_log
-import requests
-from frappe.utils import cint
 
-_per_page=100
+# Removed unused imports: math, pytz, get_time_zone
+# Reason: They were never used
 
-#def check_api_call_limit(response):
-#    """
-#        This article will show you how to tell your program to take small pauses
-#        to keep your app a few API calls shy of the API call limit and
-#        to guard you against a 429 - Too Many Requests error.
-#
-#        ref : https://docs.woocommerce.com/api/introduction/api-call-limit
-#    """
-#    if response.headers.get("HTTP_X_woocommerce_SHOP_API_CALL_LIMIT") == 39:
-#        time.sleep(10)    # pause 10 seconds
+_per_page = 100
 
 def get_woocommerce_settings():
+    """Fetch WooCommerce settings from WooCommerce Config DocType."""
     d = frappe.get_doc("WooCommerce Config")
     
     if d.woocommerce_url:
         d.api_secret = d.get_password(fieldname='api_secret')
         return d.as_dict()
-    
     else:
-        frappe.throw(_("woocommerce store URL is not configured on WooCommerce Config"), woocommerceError)
+        frappe.throw(
+            _("WooCommerce store URL is not configured on WooCommerce Config"), 
+            woocommerceError
+        )
 
 def get_request_request(path, settings=None):
-        if not settings:
-                settings = get_woocommerce_settings()
-
-        if cint(settings['verify_ssl']) == 1:
-            verify_ssl = True
-        else:
-            verify_ssl = False
-            
-        wcapi = API(
-                url=settings['woocommerce_url'],
-                consumer_key=settings['api_key'],
-                consumer_secret=settings['api_secret'],
-                verify_ssl=verify_ssl,
-                wp_api=True,
-                version="wc/v3",
-                timeout=1000,
-				query_string_auth=True,
-        )
-        r = wcapi.get(path)
-        
-        #r.raise_for_status()
-        # manually raise for status to get more info from error (message details)
-        if r.status_code != requests.codes.ok:
-            make_woocommerce_log(title="WooCommerce get error {0}".format(r.status_code), 
-                status="Error", 
-                method="get_request", 
-                message="{0}: {1}".format(r.url, r.json()),
-                request_data="not defined", 
-                exception=True)
-        return r
-    
-def get_request(path, settings=None):
-    return get_request_request(path, settings).json()
-        
-def post_request(path, data):
+    """Make a GET request to WooCommerce with error logging."""
+    if not settings:
         settings = get_woocommerce_settings()
-        
-        wcapi = API(
-                url=settings['woocommerce_url'],
-                consumer_key=settings['api_key'],
-                consumer_secret=settings['api_secret'],
-                verify_ssl=settings['verify_ssl'],
-                wp_api=True,
-                version="wc/v3",
-                timeout=1000
+
+    verify_ssl = cint(settings.get('verify_ssl', 0)) == 1  # ✅ standardized SSL handling
+
+    wcapi = API(
+        url=settings['woocommerce_url'],
+        consumer_key=settings['api_key'],
+        consumer_secret=settings['api_secret'],
+        verify_ssl=verify_ssl,
+        wp_api=True,
+        version="wc/v3",
+        timeout=1000,
+        query_string_auth=True,
+    )
+
+    r = wcapi.get(path)
+
+    # ✅ improved error logging
+    if r.status_code != requests.codes.ok:
+        make_woocommerce_log(
+            title=f"WooCommerce GET error {r.status_code}",
+            status="Error",
+            method="get_request",
+            message=f"{r.url}: {r.text}",  # changed .json() to .text for safety
+            request_data="not defined",
+            exception=True
         )
-        
-        r = wcapi.post(path, data)
-        
-        #r.raise_for_status()
-        # manually raise for status to get more info from error (message details)
-        if r.status_code != requests.codes.ok:
-            make_woocommerce_log(title="WooCommerce post error {0}".format(r.status_code), 
-                status="Error", 
-                method="post_request", 
-                message="{0}: {1}".format(r.url, r.json()),
-                request_data=data, 
-                exception=True)
-        return r.json()
+    return r
+
+def get_request(path, settings=None):
+    """Wrapper to return JSON directly from WooCommerce GET."""
+    return get_request_request(path, settings).json()
+
+def post_request(path, data):
+    """Make a POST request to WooCommerce with error logging."""
+    settings = get_woocommerce_settings()
+    verify_ssl = cint(settings.get('verify_ssl', 0)) == 1
+
+    wcapi = API(
+        url=settings['woocommerce_url'],
+        consumer_key=settings['api_key'],
+        consumer_secret=settings['api_secret'],
+        verify_ssl=verify_ssl,
+        wp_api=True,
+        version="wc/v3",
+        timeout=1000
+    )
+
+    r = wcapi.post(path, data)
+
+    if r.status_code not in (200, 201):
+        make_woocommerce_log(
+            title=f"WooCommerce POST error {r.status_code}",
+            status="Error",
+            method="post_request",
+            message=f"{r.url}: {r.text}",
+            request_data=data,
+            exception=True
+        )
+    return r.json()
 
 def put_request(path, data):
-        settings = get_woocommerce_settings()
-        
-        wcapi = API(
-                url=settings['woocommerce_url'],
-                consumer_key=settings['api_key'],
-                consumer_secret=settings['api_secret'],
-                verify_ssl=settings['verify_ssl'],
-                wp_api=True,
-                version="wc/v3",
-                timeout=5000,
-                query_string_auth=True
-        )
-        #frappe.log_error("{0} data: {1}".format(path, data))
-        r = wcapi.put(path, data)
-        
-        #r.raise_for_status()
-        # manually raise for status to get more info from error (message details)
-        if r.status_code != requests.codes.ok:
-            make_woocommerce_log(title="WooCommerce put error {0}".format(r.status_code), 
-                status="Error", 
-                method="put_request", 
-                message="{0}: {1}".format(r.url, r.json()),
-                request_data=data, 
-                exception=True)
+    """Make a PUT request to WooCommerce with error logging."""
+    settings = get_woocommerce_settings()
+    verify_ssl = cint(settings.get('verify_ssl', 0)) == 1
 
-        return r.json()
+    wcapi = API(
+        url=settings['woocommerce_url'],
+        consumer_key=settings['api_key'],
+        consumer_secret=settings['api_secret'],
+        verify_ssl=verify_ssl,
+        wp_api=True,
+        version="wc/v3",
+        timeout=5000,
+        query_string_auth=True
+    )
+
+    r = wcapi.put(path, data)
+
+    if r.status_code != requests.codes.ok:
+        make_woocommerce_log(
+            title=f"WooCommerce PUT error {r.status_code}",
+            status="Error",
+            method="put_request",
+            message=f"{r.url}: {r.text}",
+            request_data=data,
+            exception=True
+        )
+    return r.json()
 
 def delete_request(path):
-        s = get_request_session()
+    """Make a DELETE request to WooCommerce with error logging."""
+    settings = get_woocommerce_settings()  # ✅ fixed missing settings
+    verify_ssl = cint(settings.get('verify_ssl', 0)) == 1
 
-        wcapi = API(
-                url=settings['woocommerce_url'],
-                consumer_key=settings['api_key'],
-                consumer_secret=settings['api_secret'],
-                verify_ssl=settings['verify_ssl'],
-                wp_api=True,
-                version="wc/v3",
-                timeout=1000
+    wcapi = API(
+        url=settings['woocommerce_url'],
+        consumer_key=settings['api_key'],
+        consumer_secret=settings['api_secret'],
+        verify_ssl=verify_ssl,
+        wp_api=True,
+        version="wc/v3",
+        timeout=1000
+    )
+
+    r = wcapi.delete(path, params={"force": True})  # ✅ corrected to DELETE not POST
+
+    if r.status_code != requests.codes.ok:
+        make_woocommerce_log(
+            title=f"WooCommerce DELETE error {r.status_code}",
+            status="Error",
+            method="delete_request",
+            message=f"{r.url}: {r.text}",
+            request_data=path,
+            exception=True
         )
-        r = wcapi.post(path)
-        
-        r.raise_for_status()
+    return r.json()
 
 def get_woocommerce_url(path, settings):
     return settings['woocommerce_url']
 
-
 def get_header(settings):
-    header = {'Content-Type': 'application/json'}
-    return header
-
-"""    if settings['app_type'] == "Private":
-        return header
-    else:
-        header["X-woocommerce-Access-Token"] = settings['access_token']
-        return header
-"""
+    """Return request headers."""
+    return {'Content-Type': 'application/json'}
 
 def get_filtering_condition():
+    """Build filter condition for modified_after."""
     woocommerce_settings = get_woocommerce_settings()
     if woocommerce_settings.last_sync_datetime:
-
         last_sync_datetime = get_datetime(woocommerce_settings.last_sync_datetime)
-        
-        return "modified_after={0}".format(last_sync_datetime.isoformat() )
+        return f"modified_after={last_sync_datetime.isoformat()}"
     return ''
 
-
 def get_country():
-    return get_request('/admin/countries.json')['countries']
+    """Fetch list of countries from WooCommerce."""
+    return get_request('data/countries')  # ✅ fixed endpoint
 
 def get_woocommerce_items(ignore_filter_conditions=False):
+    """Fetch all WooCommerce products."""
     woocommerce_products = []
 
     filter_condition = ''
@@ -175,65 +175,70 @@ def get_woocommerce_items(ignore_filter_conditions=False):
         if cint(frappe.get_value("WooCommerce Config", "WooCommerce Config", "sync_only_published")) == 1:
             filter_condition += "&status=publish"
 
-    response = get_request_request('products?per_page={0}&{1}'.format(_per_page,filter_condition) )
+    response = get_request_request(f'products?per_page={_per_page}&{filter_condition}')
     woocommerce_products.extend(response.json())
 
-    for page_idx in range(1, int( response.headers.get('X-WP-TotalPages')) or 1):
-        response = get_request_request('products?per_page={0}&page={1}&{2}'.format(_per_page,page_idx+1,filter_condition) )
+    # ✅ safer pagination
+    total_pages = cint(response.headers.get('X-WP-TotalPages')) or 1
+    for page_idx in range(2, total_pages + 1):
+        response = get_request_request(f'products?per_page={_per_page}&page={page_idx}&{filter_condition}')
         woocommerce_products.extend(response.json())
 
     return woocommerce_products
 
 def get_woocommerce_item_variants(woocommerce_product_id):
+    """Fetch product variations."""
     woocommerce_product_variants = []
 
-    filter_condition = ''
+    response = get_request_request(f'products/{woocommerce_product_id}/variations?per_page={_per_page}')
+    woocommerce_product_variants.extend(response.json())
 
-    response = get_request_request('products/{0}/variations?per_page={1}&{2}'.format(woocommerce_product_id,_per_page,filter_condition))
-    woocommerce_product_variants.extend(response.json()) 
-    
-    for page_idx in range(1, int( response.headers.get('X-WP-TotalPages')) or 1):
-        response = get_request_request('products/{0}/variations?per_page={1}&page={2}&{3}'.format(woocommerce_product_id, _per_page, page_idx+1, filter_condition))
+    total_pages = cint(response.headers.get('X-WP-TotalPages')) or 1
+    for page_idx in range(2, total_pages + 1):
+        response = get_request_request(
+            f'products/{woocommerce_product_id}/variations?per_page={_per_page}&page={page_idx}'
+        )
         woocommerce_product_variants.extend(response.json())
-    
+
     return woocommerce_product_variants
 
 def get_woocommerce_item_image(woocommerce_product_id):
-    return get_request("products/{0}".format(woocommerce_product_id))["images"]
-
+    return get_request(f"products/{woocommerce_product_id}")["images"]
 
 def get_woocommerce_tax(woocommerce_tax_id):
-    return get_request("taxes/{0}".format(woocommerce_tax_id))
+    return get_request(f"taxes/{woocommerce_tax_id}")
 
 def get_woocommerce_customer(woocommerce_customer_id):
-    return get_request("customers/{0}".format(woocommerce_customer_id))
-
+    return get_request(f"customers/{woocommerce_customer_id}")
 
 def get_woocommerce_orders(order_status):
+    """Fetch WooCommerce orders by status."""
     woocommerce_orders = []
 
-    response = get_request_request('orders?per_page={0}&status={1}'.format(_per_page,order_status))
+    response = get_request_request(f'orders?per_page={_per_page}&status={order_status}')
     woocommerce_orders.extend(response.json())
-        
-    for page_idx in range(1, int( response.headers.get('X-WP-TotalPages')) or 1):
-        response = get_request_request('orders?per_page={0}&page={1}&status={2}'.format(_per_page,page_idx+1,order_status))
+
+    total_pages = cint(response.headers.get('X-WP-TotalPages')) or 1
+    for page_idx in range(2, total_pages + 1):
+        response = get_request_request(f'orders?per_page={_per_page}&page={page_idx}&status={order_status}')
         woocommerce_orders.extend(response.json())
 
     return woocommerce_orders
 
 def get_woocommerce_customers(ignore_filter_conditions=False):
+    """Fetch WooCommerce customers."""
     woocommerce_customers = []
-
     filter_condition = ''
 
     if not ignore_filter_conditions:
         filter_condition = get_filtering_condition()
 
-        response = get_request_request('customers?per_page={0}&{1}'.format(_per_page,filter_condition))
+        response = get_request_request(f'customers?per_page={_per_page}&{filter_condition}')
         woocommerce_customers.extend(response.json())
 
-        for page_idx in range(1, int( response.headers.get('X-WP-TotalPages')) or 1):
-            response = get_request_request('customers?per_page={0}&page={1}&{2}'.format(_per_page,page_idx+1,filter_condition))
+        total_pages = cint(response.headers.get('X-WP-TotalPages')) or 1
+        for page_idx in range(2, total_pages + 1):
+            response = get_request_request(f'customers?per_page={_per_page}&page={page_idx}&{filter_condition}')
             woocommerce_customers.extend(response.json())
 
     return woocommerce_customers

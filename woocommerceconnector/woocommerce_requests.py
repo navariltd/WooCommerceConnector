@@ -6,11 +6,22 @@ from .exceptions import woocommerceError
 from frappe.utils import get_request_session, get_datetime, cint
 from woocommerce import API
 from .utils import make_woocommerce_log
+import requests
 
-# Removed unused imports: math, pytz, get_time_zone
-# Reason: They were never used
 
 _per_page = 100
+
+
+#def check_api_call_limit(response):
+#    """
+#        This article will show you how to tell your program to take small pauses
+#        to keep your app a few API calls shy of the API call limit and
+#        to guard you against a 429 - Too Many Requests error.
+#
+#        ref : https://docs.woocommerce.com/api/introduction/api-call-limit
+#    """
+#    if response.headers.get("HTTP_X_woocommerce_SHOP_API_CALL_LIMIT") == 39:
+#        time.sleep(10)    # pause 10 seconds
 
 def get_woocommerce_settings():
     """Fetch WooCommerce settings from WooCommerce Config DocType."""
